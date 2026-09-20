@@ -7,8 +7,11 @@ The commands below are written for a terminal sitting in this repository. From a
 the full path instead:
 
 ```powershell
-python C:\Users\Justi\OneDrive\Documents\GitHub\psrp-bot\tools\koyeb.py logs
+python <where you cloned this>\psrp-bot\tools\koyeb.py logs
 ```
+
+The tool prints its own full path in every hint it gives, so whatever it shows you can be pasted
+back as-is.
 
 ## Once
 
