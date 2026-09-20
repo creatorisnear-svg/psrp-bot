@@ -1,5 +1,6 @@
 // Slash commands. Registered for the one guild at start-up, so changes show immediately.
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const renameroles = require('./renameroles');
 
 const NEUTRAL = 0x2b2d31;
 const GREEN = 0x57c46b;
@@ -12,7 +13,7 @@ const definitions = [
         .setName('sync')
         .setDescription('Re-read Discord roles in game right now (staff ranks, departments)')
         .addUserOption((o) => o.setName('member').setDescription('Someone else (needs Manage Roles). Leave empty for yourself.')),
-].map((c) => c.toJSON());
+].map((c) => c.toJSON()).concat([renameroles.definition]);
 
 const clock = (s) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
 
@@ -46,6 +47,8 @@ function playersEmbed(config, state) {
 
 async function handle(interaction, { config, game }) {
     if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'renameroles') return renameroles.handle(interaction);
 
     if (interaction.commandName === 'status') {
         await interaction.deferReply();
