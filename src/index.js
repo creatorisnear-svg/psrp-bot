@@ -75,13 +75,26 @@ async function startDiscord() {
         instance.once(Events.ClientReady, async (ready) => {
             discordReady = true;
             log(`discord: logged in as ${ready.user.tag}`);
+
+            // View Channel, Send Messages, Embed Links, Read Message History - enough for /status
+            // and the optional status message, and nothing more.
+            const invite = `https://discord.com/oauth2/authorize?client_id=${ready.application.id}`
+                + '&permissions=84992&scope=bot%20applications.commands';
+
             const guild = await ready.guilds.fetch(config.guildId).catch(() => null);
-            if (!guild) log('WARNING: the bot is not in the Discord server named by GUILD_ID. Invite it, then redeploy.');
+            if (!guild) {
+                log(`WARNING: this bot is not in the Discord server ${config.guildId}.`);
+                log(`         Add it with this link, then redeploy:  ${invite}`);
+                log(`         It is currently in ${ready.guilds.cache.size} server(s). If that number is not 0, check GUILD_ID.`);
+            } else {
+                log(`discord: watching ${guild.name}`);
+            }
             try {
                 await ready.application.commands.set(commands.definitions, config.guildId);
                 log('discord: slash commands registered (/status /players /sync)');
             } catch (err) {
-                log(`WARNING: could not register slash commands (${err.message}). Re-invite the bot with the applications.commands scope.`);
+                log(`WARNING: could not register slash commands (${err.message}).`);
+                log(`         The bot needs the applications.commands scope - re-invite it:  ${invite}`);
             }
             if (timersStarted) return;
             timersStarted = true;
