@@ -91,7 +91,7 @@ async function startDiscord() {
             }
             try {
                 await ready.application.commands.set(commands.definitions, config.guildId);
-                log('discord: slash commands registered (/status /players /sync)');
+                log(`discord: slash commands registered (${commands.definitions.map((c) => '/' + c.name).join(' ')})`);
             } catch (err) {
                 log(`WARNING: could not register slash commands (${err.message}).`);
                 log(`         The bot needs the applications.commands scope - re-invite it:  ${invite}`);
