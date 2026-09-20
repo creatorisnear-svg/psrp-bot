@@ -10,6 +10,7 @@ command line. To store it, run this in your own terminal:
 Commands (SERVICE may be left out while you only have one service):
 
     setup                            store your API key (asks for it, nothing is echoed)
+    keyfile                          same thing, but paste into a file - use this if paste is blocked
     whoami                           check the key works, show the organization
     apps                             your Koyeb apps
     ls                               your services: status, instance, region
@@ -68,7 +69,7 @@ def api_key():
         sys.exit(
             "No Koyeb API key yet.\n"
             "  Create one at https://app.koyeb.com/user/settings/api  (Create API credential)\n"
-            "  then run:  %s setup" % RUN
+            "  then run:  %s setup     (or %s keyfile if your terminal blocks pasting)" % (RUN, RUN)
         )
     return key
 
@@ -80,7 +81,10 @@ def cmd_setup():
     if not sys.stdin.isatty():
         sys.exit("Run this in your own terminal - it asks for the key without showing it.")
     print("Create a key at https://app.koyeb.com/user/settings/api  (Create API credential)")
+    print("If your terminal will not let you paste here, press Enter and run:  %s keyfile" % RUN)
     key = getpass.getpass("Paste your Koyeb API key (it stays hidden): ").strip()
+    if not key:
+        sys.exit("Nothing entered. To paste into a file instead, run:  %s keyfile" % RUN)
     if len(key) < 20:
         sys.exit("That does not look like a Koyeb API key - nothing was saved.")
     lines = []
@@ -93,11 +97,67 @@ def cmd_setup():
     except Exception:
         pass
     print("Saved to %s - it is never printed by this tool." % ENV_FILE)
-    print("Check it with:  %s whoami" % RUN)
+    print("Checking it with Koyeb...")
+    problem = verify()
+    if problem:
+        print(problem)
+        sys.exit(1)
+    print("It works.  Try:  %s ls" % RUN)
+
+
+def verify():
+    """Ask Koyeb whether the stored key works. Returns None when it does, else what is wrong."""
+    reply = request("GET", "/services", params={"limit": "1"}, soft=True, quiet401=True)
+    if reply is not None:
+        return None
+    return (
+        "Koyeb rejected that key.\n"
+        "  A Koyeb API key is one long line containing dots. If yours arrived shorter than what you\n"
+        "  copied, the terminal dropped part of the paste - that is common on Windows.\n"
+        "  Paste it into a file instead, where nothing can be dropped:  %s keyfile" % RUN
+    )
+
+
+def cmd_keyfile():
+    """Open the key file in an editor with the line ready, so the key can be pasted normally.
+
+    Some terminals will not paste into a hidden prompt, and typing the key in plain sight would
+    leave it in the scrollback. A file avoids both.
+    """
+    lines = []
+    if ENV_FILE.exists():
+        lines = [l for l in ENV_FILE.read_text(encoding="utf-8").splitlines()
+                 if l.strip() and not l.startswith("KOYEB_API_KEY")]
+    if not any(l.startswith("#") for l in lines):
+        lines.insert(0, "# Your Koyeb API key. Paste it straight after the = below, then save and close.")
+        lines.insert(1, "# Get one at https://app.koyeb.com/user/settings/api  (Create API credential)")
+    lines.append("KOYEB_API_KEY=")
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        os.chmod(ENV_FILE, 0o600)
+    except Exception:
+        pass
+
+    print("Opening %s" % ENV_FILE)
+    print("  Paste your key right after  KOYEB_API_KEY=  then save and close the editor.")
+    opened = False
+    try:
+        if sys.platform == "win32":
+            os.startfile(str(ENV_FILE))          # noqa: S606 - the user's own editor, their own file
+            opened = True
+        else:
+            import subprocess
+            subprocess.Popen([os.environ.get("EDITOR", "nano"), str(ENV_FILE)])
+            opened = True
+    except Exception:
+        pass
+    if not opened:
+        print("  Could not open an editor - open that file yourself.")
+    print("\nWhen it is saved, check it with:  %s whoami" % RUN)
 
 
 # ---- talking to Koyeb ----------------------------------------------------------------------------
-def request(method, path, body=None, params=None, soft=False):
+def request(method, path, body=None, params=None, soft=False, quiet401=False):
     url = API + path
     if params:
         url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v not in (None, "")})
@@ -118,7 +178,13 @@ def request(method, path, body=None, params=None, soft=False):
         except Exception:
             pass
         if err.code == 401:
-            sys.exit("Koyeb rejected the API key (401). Make a new one and run: %s setup" % RUN)
+            if quiet401:
+                return None
+            sys.exit(
+                "Koyeb rejected the API key (401): %s\n"
+                "  Store it again - and if pasting into the hidden prompt keeps failing, use a file:\n"
+                "    %s keyfile" % (mask(str(detail)), RUN)
+            )
         if soft:
             return None
         sys.exit("Koyeb said HTTP %s: %s" % (err.code, mask(detail)))
@@ -215,6 +281,9 @@ def definition_of(service):
 
 # ---- commands ------------------------------------------------------------------------------------
 def cmd_whoami():
+    problem = verify()
+    if problem:
+        sys.exit(problem)
     profile = request("GET", "/account/profile", soft=True) or {}
     me = profile.get("user") or {}
     if me.get("email") or me.get("name"):
@@ -423,7 +492,7 @@ def cmd_secrets():
 
 
 COMMANDS = {
-    "setup": cmd_setup, "whoami": cmd_whoami, "apps": cmd_apps, "ls": cmd_ls, "info": cmd_info,
+    "setup": cmd_setup, "keyfile": cmd_keyfile, "whoami": cmd_whoami, "apps": cmd_apps, "ls": cmd_ls, "info": cmd_info,
     "logs": cmd_logs, "deploy": cmd_deploy, "env": cmd_env, "set": cmd_set, "unset": cmd_unset,
     "pause": cmd_pause, "resume": cmd_resume, "deployments": cmd_deployments, "secrets": cmd_secrets,
 }
