@@ -8,6 +8,7 @@
 const { config, needs } = require('./config');
 const { Game } = require('./game');
 const { startServer } = require('./http');
+const shift = require('./shift');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
 
@@ -23,7 +24,10 @@ if (needs.discord.length || needs.game.length) {
 const game = new Game(config, log);
 let client = null;
 let discordReady = false;
-const server = startServer(config, game, { discord: () => discordReady, needs }, log);
+// The web server is up before Discord is, so the shift handler reads `client` when it fires
+// rather than capturing whatever it was at start-up.
+const server = startServer(config, game, { discord: () => discordReady, needs }, log,
+    (payload) => shift.deliver(client, config, payload, log));
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {

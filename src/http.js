@@ -34,7 +34,7 @@ function readJson(req) {
     });
 }
 
-function startServer(config, game, health, log = console.log) {
+function startServer(config, game, health, log = console.log, onShift = null) {
     const server = http.createServer(async (req, res) => {
         const path = (req.url || '/').split('?')[0];
         try {
@@ -55,6 +55,16 @@ function startServer(config, game, health, log = console.log) {
                         priorities: game.state.priorities.map((p) => `${p.label}: ${p.state}${p.state === 'cooldown' ? ` ${p.remaining}s` : ''}`),
                     } : {}),
                 });
+            }
+            // A staff member clocked off. The game server has already saved the shift; this only
+            // asks the bot to pass it on, so a failed direct message never costs anyone their hours.
+            if (req.method === 'POST' && path === '/shift') {
+                if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
+                if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
+                const shift = await readJson(req);
+                if (!onShift) return send(res, 503, { error: 'not connected to Discord yet' });
+                const result = await onShift(shift);
+                return send(res, 200, { ok: !!result.ok, ...(result.reason ? { reason: result.reason } : {}) });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
                 if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
