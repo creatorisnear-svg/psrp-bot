@@ -195,9 +195,31 @@ def request(method, path, body=None, params=None, soft=False, quiet401=False):
 
 
 # ---- keeping secrets out of the output -------------------------------------------------------------
-SECRET_HINTS = re.compile(r"token|secret|password|passwd|api[_-]?key|sync[_-]?key|webhook|authorization|credential", re.I)
+# Names that always hold something private.
+SECRET_HINTS = re.compile(
+    r"token|secret|password|passwd|\bpwd\b|key|credential|auth|private|session|cookie|salt|signature"
+    r"|webhook|dsn|connection|conn[_-]?str|database[_-]?url|licen[cs]e",
+    re.I,
+)
+
+# A value can be a credential whatever the setting is called.
+CREDENTIAL_SHAPED = [
+    re.compile(r"[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@"),        # scheme://user:password@host
+    re.compile(r"\b[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{16,}\b"),   # jwt / bot token
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    re.compile(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9+/_=-]{24,}$"),   # one long random-looking blob
+]
+
+
+def looks_private(value):
+    value = (value or "").strip()
+    if not value:
+        return False
+    return any(pattern.search(value) for pattern in CREDENTIAL_SHAPED)
+
 
 MASKS = [
+    (re.compile(r"([a-z][a-z0-9+.-]*://[^/\s:@]+:)[^/\s@]+(@)"), r"\1***\2"),   # password inside a url
     (re.compile(r"\b([A-Za-z0-9_-]{20,28}\.[A-Za-z0-9_-]{6,8}\.[A-Za-z0-9_-]{25,40})\b"), "***"),          # discord bot token
     (re.compile(r"(https?://(?:discord(?:app)?\.com|ptb\.discord\.com)/api/webhooks/)\S+", re.I), r"\1***"),
     (re.compile(r"((?:authorization|bearer|token|secret|password|api[_-]?key|sync[_-]?key)\W{0,3})([^\s\"',]{8,})", re.I), r"\1***"),
@@ -212,11 +234,12 @@ def mask(text):
 
 
 def hide(key, value, secret_ref):
+    """What to show for one setting. When in doubt, hide it: this output gets pasted around."""
     if secret_ref:
         return "-> Koyeb secret %s" % secret_ref
-    if SECRET_HINTS.search(key or ""):
+    if SECRET_HINTS.search(key or "") or looks_private(value):
         return "(hidden, %d characters)" % len(value or "")
-    return value or ""
+    return mask(value or "")
 
 
 # ---- finding things ------------------------------------------------------------------------------
