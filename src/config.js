@@ -14,8 +14,10 @@ const config = {
     syncKey: read('SYNC_KEY'),                        // the same text as psrp_discord_sync_key on the game server
     port: Number(process.env.PORT) || 8000,
     serverName: read('SERVER_NAME', 'Palm Springs Roleplay'),
-    connectUrl: read('CONNECT_URL'),                  // optional, shown in /status (cfx.re/join/xxxxxx)
-    statusChannelId: read('STATUS_CHANNEL_ID'),       // optional, a channel the bot keeps a status message in
+    connectUrl: read('CONNECT_URL'),                  // optional, a cfx.re/join link for the Connect button
+    storeUrl: read('STORE_URL', 'https://psrpnetwork.online'),
+    // A channel id, or just its name - "server-status" works, emoji and separators and all.
+    statusChannelId: read('STATUS_CHANNEL_ID') || read('STATUS_CHANNEL'),
 };
 
 // What is stopping each half from working. Empty lists mean that half is ready to run.

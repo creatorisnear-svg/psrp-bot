@@ -9,6 +9,7 @@ const { config, needs } = require('./config');
 const { Game } = require('./game');
 const { startServer } = require('./http');
 const shift = require('./shift');
+const status = require('./status');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
 
@@ -58,20 +59,32 @@ async function startDiscord() {
     async function refreshStatusMessage() {
         if (statusFailures >= 5) return;        // wrong channel or missing permissions: said once below, not every minute
         try {
-            const channel = await client.channels.fetch(config.statusChannelId);
-            if (!channel || !channel.isTextBased()) throw new Error('that is not a text channel');
-            const embed = commands.statusEmbed(config, await game.status());
+            const channel = await status.findChannel(client, config.guildId, config.statusChannelId);
+            if (!channel) throw new Error(`no text channel matching "${config.statusChannelId}"`);
+
+            const state = await game.status();
+            const payload = { embeds: [status.embed(config, state)], components: status.buttons(config, state) };
+
+            // Re-use the panel already in the channel rather than posting a second one after a
+            // redeploy - the bot forgets which message was its own every time it restarts.
             if (!statusMessage) {
-                const recent = await channel.messages.fetch({ limit: 20 });
-                statusMessage = recent.find((m) => m.author.id === client.user.id) || null;
+                const recent = await channel.messages.fetch({ limit: 30 });
+                statusMessage = recent.find((m) => m.author.id === client.user.id && m.embeds.length) || null;
+                if (statusMessage) log(`status: reusing the existing panel in #${channel.name}`);
             }
-            if (statusMessage) await statusMessage.edit({ embeds: [embed] });
-            else statusMessage = await channel.send({ embeds: [embed] });
+            if (statusMessage) await statusMessage.edit(payload);
+            else {
+                statusMessage = await channel.send(payload);
+                log(`status: panel posted in #${channel.name}`);
+            }
             statusFailures = 0;
         } catch (err) {
             statusMessage = null;
             statusFailures += 1;
-            if (statusFailures === 5) log(`status message: giving up (${err.message}). The bot needs View Channel, Send Messages, Embed Links and Read Message History in STATUS_CHANNEL_ID.`);
+            if (statusFailures === 1) log(`status panel: ${err.message}`);
+            if (statusFailures === 5) {
+                log('status panel: giving up. The bot needs View Channel, Send Messages, Embed Links and Read Message History there.');
+            }
         }
     }
 
@@ -106,7 +119,9 @@ async function startDiscord() {
             setInterval(() => refreshPresence().catch(() => {}), 30000);
             if (config.statusChannelId) {
                 refreshStatusMessage();
-                setInterval(refreshStatusMessage, 60000);
+                setInterval(refreshStatusMessage, 60000);   // Discord rate-limits edits, so not faster
+            } else {
+                log('status panel: set STATUS_CHANNEL to a channel name or id to switch it on');
             }
         });
 
