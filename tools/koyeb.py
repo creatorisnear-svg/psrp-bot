@@ -41,6 +41,15 @@ from pathlib import Path
 API = "https://app.koyeb.com/v1"
 ENV_FILE = Path.home() / ".koyeb.env"
 
+# How this tool refers to itself in what it prints: short while you are standing in the repository,
+# the full path from anywhere else, so every example can be pasted exactly as it appears.
+HERE = Path(__file__).resolve()
+try:
+    ME = str(HERE.relative_to(Path.cwd()))
+except ValueError:
+    ME = str(HERE)
+RUN = "python " + ME
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -59,7 +68,7 @@ def api_key():
         sys.exit(
             "No Koyeb API key yet.\n"
             "  Create one at https://app.koyeb.com/user/settings/api  (Create API credential)\n"
-            "  then run:  python tools/koyeb.py setup"
+            "  then run:  %s setup" % RUN
         )
     return key
 
@@ -84,7 +93,7 @@ def cmd_setup():
     except Exception:
         pass
     print("Saved to %s - it is never printed by this tool." % ENV_FILE)
-    print("Check it with:  python tools/koyeb.py whoami")
+    print("Check it with:  %s whoami" % RUN)
 
 
 # ---- talking to Koyeb ----------------------------------------------------------------------------
@@ -109,7 +118,7 @@ def request(method, path, body=None, params=None, soft=False):
         except Exception:
             pass
         if err.code == 401:
-            sys.exit("Koyeb rejected the API key (401). Make a new one and run: python tools/koyeb.py setup")
+            sys.exit("Koyeb rejected the API key (401). Make a new one and run: %s setup" % RUN)
         if soft:
             return None
         sys.exit("Koyeb said HTTP %s: %s" % (err.code, mask(detail)))
@@ -328,7 +337,8 @@ def cmd_deploy(*args):
     name = next((a for a in args if not a.startswith("--")), None)
     service = pick(name)
     request("POST", "/services/%s/redeploy" % service["id"], body={"skip_build": skip_build, "use_cache": not skip_build})
-    print("redeploying %s%s - watch it with:  python tools/koyeb.py logs --build" % (service.get("name"), " (reusing the last build)" if skip_build else ""))
+    print("redeploying %s%s - watch it with:  %s logs --build" % (
+        service.get("name"), " (reusing the last build)" if skip_build else "", RUN))
 
 
 def apply_definition(service, definition, what):
@@ -340,7 +350,7 @@ def cmd_set(*args):
     name, args = split_service(args)
     pairs = [a for a in args if "=" in a]
     if not pairs:
-        sys.exit("Nothing to set. Example:  python tools/koyeb.py set FIVEM_URL=http://23.27.211.21:30136")
+        sys.exit("Nothing to set. Example:  %s set FIVEM_URL=http://23.27.211.21:30136" % RUN)
 
     service = pick(name)
     definition, _ = definition_of(service)
@@ -361,7 +371,7 @@ def cmd_set(*args):
                 sys.exit(
                     "%s holds a secret, so it is not typed here.\n"
                     "  1. https://app.koyeb.com/secrets -> Create secret, name it for example %s, paste the value there\n"
-                    "  2. then run:  python tools/koyeb.py set %s=@%s" % (key, key.lower(), key, key.lower())
+                    "  2. then run:  %s set %s=@%s" % (key, key.lower(), RUN, key, key.lower())
                 )
             entry = {"scopes": scopes, "key": key, "value": value}
 
@@ -409,7 +419,7 @@ def cmd_secrets():
         print("No Koyeb secrets yet. Create them at https://app.koyeb.com/secrets")
     for secret in got:
         print("%-28s %s" % (secret.get("name"), when(secret.get("updated_at"))))
-    print("\nBind one to a setting with:  python tools/koyeb.py set KEY=@secretname")
+    print("\nBind one to a setting with:  %s set KEY=@secretname" % RUN)
 
 
 COMMANDS = {

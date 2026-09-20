@@ -3,6 +3,13 @@
 Logs, redeploys and settings for the bot's Koyeb service, without opening the dashboard.
 Needs Python 3 (already installed) and nothing else.
 
+The commands below are written for a terminal sitting in this repository. From anywhere else, give
+the full path instead:
+
+```powershell
+python C:\Users\Justi\OneDrive\Documents\GitHub\psrp-bot\tools\koyeb.py logs
+```
+
 ## Once
 
 1. Make an API key: https://app.koyeb.com/user/settings/api -> **Create API credential**.
