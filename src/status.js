@@ -30,10 +30,13 @@ function embed(config, state) {
     e.addFields(
         { name: 'In the City', value: max ? `**${state.players}** / ${max}` : `**${state.players}**`, inline: true },
         { name: 'Staff On Duty', value: state.staff === null ? '—' : `**${state.staff}**`, inline: true },
-        { name: 'Area of Patrol', value: state.aop || '—', inline: true },
+        { name: 'Area of Patrol', value: state.aop || '*updating…*', inline: true },
     );
 
-    if (state.priorities && state.priorities.length) {
+    if (!state.priorities || !state.priorities.length) {
+        // Better than an empty box: this is what a player sees in the seconds after a restart.
+        e.addFields({ name: 'Priorities', value: '*updating…*' });
+    } else if (state.priorities && state.priorities.length) {
         const lines = state.priorities.map((p) => {
             const mark = p.state === 'available' ? '🟢' : p.state === 'active' ? '🔴' : '🟠';
             const what = p.state === 'available' ? 'Available'

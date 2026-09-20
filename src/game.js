@@ -21,17 +21,34 @@ class Game {
     // ---- game -> bot ---------------------------------------------------------------------------
     heartbeat(body) {
         const list = Array.isArray(body.list) ? body.list : [];
+        const aop = typeof body.aop === 'string' && body.aop.trim() ? body.aop.trim().slice(0, 60) : null;
+        const priorities = Array.isArray(body.priorities) && body.priorities.length
+            ? body.priorities.slice(0, 12).map((p) => ({
+                label: String(p.label || p.id || '').slice(0, 40),
+                state: String(p.state || ''),
+                remaining: Number(p.remaining) || 0,
+            }))
+            : null;
+
         this.state = {
             at: Date.now(),
             online: true,
             players: Number.isFinite(Number(body.players)) ? Number(body.players) : list.length,
             max: Number(body.max) || 0,
             staff: Number.isFinite(Number(body.staff)) ? Number(body.staff) : null,
-            aop: typeof body.aop === 'string' && body.aop.trim() ? body.aop.trim().slice(0, 60) : null,
-            priorities: Array.isArray(body.priorities) ? body.priorities.slice(0, 12).map((p) => ({ label: String(p.label || p.id || '').slice(0, 40), state: String(p.state || ''), remaining: Number(p.remaining) || 0 })) : [],
+            // Kept from the last beat that had them. The game always sends a default, so a beat
+            // without them means psrp_hud had not started yet, not that they were cleared.
+            aop: aop || this.state.aop,
+            priorities: priorities || this.state.priorities,
             list: list.slice(0, 256).map((p) => ({ id: Number(p.id) || 0, name: String(p.name || 'Unknown').slice(0, 48) })),
             source: 'heartbeat',
         };
+    }
+
+    // Seconds since the last heartbeat, or null if none has ever arrived. Without this, "the server
+    // just restarted" and "the server is sending empty data" look identical from outside.
+    ageSeconds() {
+        return this.state.at ? Math.round((Date.now() - this.state.at) / 1000) : null;
     }
 
     fresh() {

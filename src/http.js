@@ -49,6 +49,7 @@ function startServer(config, game, health, log = console.log, onShift = null) {
                     ...(waiting.length ? { waitingFor: waiting } : {}),
                     // Echo what the game last sent. Nothing private, and it is the only way to check
                     // the whole chain - HUD -> game -> bot -> Discord - without being in the city.
+                    heartbeatAge: game.ageSeconds(),
                     ...(live ? {
                         players: game.state.players,
                         aop: game.state.aop,
