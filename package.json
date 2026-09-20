@@ -1,0 +1,17 @@
+{
+  "name": "psrp-bot",
+  "version": "1.0.0",
+  "description": "Palm Springs Roleplay - Discord bot: live server status, slash commands, and instant Discord-role sync into the game",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "discord.js": "^14.17.3"
+  }
+}
