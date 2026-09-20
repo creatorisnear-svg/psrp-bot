@@ -227,7 +227,11 @@ MASKS = [
 ]
 
 
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
 def mask(text):
+    text = ANSI.sub("", text)
     for pattern, repl in MASKS:
         text = pattern.sub(repl, text)
     return text
@@ -402,12 +406,20 @@ def cmd_logs(*args):
         else:
             name = arg
     service = pick(name)
-    reply = request("GET", "/streams/logs/query", params={
-        "type": kind, "service_id": service["id"], "limit": str(lines), "order": "desc",
-    })
+    params = {"type": kind, "limit": str(lines), "order": "desc"}
+    if kind == "build":
+        # The build happens per deployment, so these logs are only addressable that way.
+        deployment = latest_deployment(service["id"])
+        if not deployment:
+            sys.exit("%s has not been deployed yet, so there is no build log." % service.get("name"))
+        params["deployment_id"] = deployment["id"]
+        print("build log of the deployment from %s (%s)" % (when(deployment.get("created_at")), deployment.get("status")))
+    else:
+        params["service_id"] = service["id"]
+    reply = request("GET", "/streams/logs/query", params=params)
     entries = list(reversed(reply.get("data") or []))
     if not entries:
-        print("No %s logs in the last hour for %s." % (kind, service.get("name")))
+        print("No %s logs for %s." % (kind, service.get("name")))
         return
     for entry in entries:
         stamp = (entry.get("created_at") or "")[11:19]
