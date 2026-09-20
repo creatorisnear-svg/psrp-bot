@@ -5,21 +5,25 @@
 //   * optional: keeps one status message up to date in a channel (STATUS_CHANNEL_ID)
 // Which role means what is decided on the game server (resources/psrp_discord/roles.lua), not here.
 
-const { config, missing } = require('./config');
+const { config, needs } = require('./config');
 const { Game } = require('./game');
 const { startServer } = require('./http');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
 
-if (missing.length) {
-    console.error(`Missing settings: ${missing.join(', ')}. Add them as environment variables in Koyeb (see README.md).`);
-    process.exit(1);
+// A service can be created before its settings are filled in. Say what is missing and keep the web
+// server up so the health check passes; add the settings and the next deploy picks them up.
+for (const [half, list] of Object.entries(needs)) {
+    if (list.length) log(`waiting for ${list.join(' and ')} before the ${half} side can run`);
+}
+if (needs.discord.length || needs.game.length) {
+    log('add them in Koyeb under the service settings, then redeploy. See README.md.');
 }
 
 const game = new Game(config, log);
 let client = null;
 let discordReady = false;
-const server = startServer(config, game, { discord: () => discordReady }, log);
+const server = startServer(config, game, { discord: () => discordReady, needs }, log);
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {
@@ -139,6 +143,8 @@ async function startDiscord() {
 
 if (config.offline) {
     log('BOT_OFFLINE=1: web server only, not logging in to Discord');
+} else if (needs.discord.length) {
+    log('not logging in to Discord yet - see above');
 } else {
     startDiscord().catch((err) => {
         const reason = err && err.code === 'TokenInvalid'

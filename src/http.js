@@ -39,9 +39,17 @@ function startServer(config, game, health, log = console.log) {
         const path = (req.url || '/').split('?')[0];
         try {
             if (req.method === 'GET' && (path === '/' || path === '/health')) {
-                return send(res, 200, { ok: true, discord: health.discord(), game: game.state.online && game.fresh() });
+                const waiting = [...(health.needs ? health.needs.discord : []), ...(health.needs ? health.needs.game : [])];
+                // 200 even while waiting: the service is up, it just has nothing to do yet.
+                return send(res, 200, {
+                    ok: true,
+                    discord: health.discord(),
+                    game: game.state.online && game.fresh(),
+                    ...(waiting.length ? { waitingFor: waiting } : {}),
+                });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
+                if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
                 if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
                 game.heartbeat(await readJson(req));
                 return send(res, 200, { ok: true });
