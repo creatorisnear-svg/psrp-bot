@@ -40,12 +40,20 @@ function startServer(config, game, health, log = console.log) {
         try {
             if (req.method === 'GET' && (path === '/' || path === '/health')) {
                 const waiting = [...(health.needs ? health.needs.discord : []), ...(health.needs ? health.needs.game : [])];
+                const live = game.state.online && game.fresh();
                 // 200 even while waiting: the service is up, it just has nothing to do yet.
                 return send(res, 200, {
                     ok: true,
                     discord: health.discord(),
-                    game: game.state.online && game.fresh(),
+                    game: live,
                     ...(waiting.length ? { waitingFor: waiting } : {}),
+                    // Echo what the game last sent. Nothing private, and it is the only way to check
+                    // the whole chain - HUD -> game -> bot -> Discord - without being in the city.
+                    ...(live ? {
+                        players: game.state.players,
+                        aop: game.state.aop,
+                        priorities: game.state.priorities.map((p) => `${p.label}: ${p.state}${p.state === 'cooldown' ? ` ${p.remaining}s` : ''}`),
+                    } : {}),
                 });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
