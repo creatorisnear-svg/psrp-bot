@@ -1,6 +1,7 @@
 // Slash commands. Registered for the one guild at start-up, so changes show immediately.
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const renameroles = require('./renameroles');
+const welcome = require('./welcome');
 
 const NEUTRAL = 0x2b2d31;
 const GREEN = 0x57c46b;
@@ -9,6 +10,10 @@ const RED = 0xe5686c;
 const definitions = [
     new SlashCommandBuilder().setName('status').setDescription('Is the server up, and how many people are in the city?'),
     new SlashCommandBuilder().setName('players').setDescription('Who is in the city right now'),
+    new SlashCommandBuilder()
+        .setName('testwelcome')
+        .setDescription('See the welcome message a new member would get')
+        .addBooleanOption((o) => o.setName('post').setDescription('Actually post it in the welcome channel, rather than showing it only to you')),
     new SlashCommandBuilder()
         .setName('sync')
         .setDescription('Re-read Discord roles in game right now (staff ranks, departments)')
@@ -45,10 +50,28 @@ function playersEmbed(config, state) {
     return embed.setDescription(text).setFooter({ text: `${state.players}${state.max ? ` / ${state.max}` : ''} players` });
 }
 
-async function handle(interaction, { config, game }) {
+async function handle(interaction, { config, game, findChannel }) {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'renameroles') return renameroles.handle(interaction);
+
+    if (interaction.commandName === 'testwelcome') {
+        const guild = interaction.guild;
+        if (!guild) return interaction.reply({ content: 'Run this in the server.', flags: MessageFlags.Ephemeral });
+        if (interaction.user.id !== guild.ownerId && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+            return interaction.reply({ content: 'You need Manage Server to preview this.', flags: MessageFlags.Ephemeral });
+        }
+        const post = interaction.options.getBoolean('post') || false;
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const member = await guild.members.fetch(interaction.user.id);
+        const built = await welcome.build(member, config);
+        if (!post) return interaction.editReply({ content: 'This is what a new member sees. Nobody else can see this preview.', embeds: [built] });
+
+        const channel = await findChannel(guild.id, config.welcomeChannel);
+        if (!channel) return interaction.editReply(`No channel matching "${config.welcomeChannel}".`);
+        await channel.send({ content: `${member}`, embeds: [built] });
+        return interaction.editReply(`Posted in <#${channel.id}>.`);
+    }
 
     if (interaction.commandName === 'status') {
         await interaction.deferReply();

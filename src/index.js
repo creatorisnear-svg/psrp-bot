@@ -142,7 +142,10 @@ async function startDiscord() {
         });
 
         instance.on(Events.InteractionCreate, (interaction) => {
-            commands.handle(interaction, { config, game }).catch((err) => log(`command failed: ${err.message}`));
+            commands.handle(interaction, {
+                config, game,
+                findChannel: (guildId, wanted) => status.findChannel(client, guildId, wanted),
+            }).catch((err) => log(`command failed: ${err.message}`));
         });
 
         // Roles changed, or the member left: the game re-reads that one member from Discord.
