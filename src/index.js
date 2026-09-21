@@ -11,6 +11,7 @@ const { startServer } = require('./http');
 const shift = require('./shift');
 const status = require('./status');
 const welcome = require('./welcome');
+const { Logs } = require('./logs');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
 
@@ -24,6 +25,7 @@ if (needs.discord.length || needs.game.length) {
 }
 
 const game = new Game(config, log);
+const logs = new Logs(config, log);
 let client = null;
 let discordReady = false;
 let refreshPanel = null;      // set once Discord is up, so an announcement can repaint immediately
@@ -31,7 +33,8 @@ let refreshPanel = null;      // set once Discord is up, so an announcement can 
 // rather than capturing whatever it was at start-up.
 const server = startServer(config, game, { discord: () => discordReady, needs }, log,
     (payload) => shift.deliver(client, config, payload, log),
-    () => { if (refreshPanel) refreshPanel(); });      // a restart announcement repaints at once
+    () => { if (refreshPanel) refreshPanel(); },       // a restart announcement repaints at once
+    logs);
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {
@@ -130,6 +133,7 @@ async function startDiscord() {
             refreshPresence().catch(() => {});
             setInterval(() => refreshPresence().catch(() => {}), 30000);
             refreshPanel = refreshStatusMessage;
+            logs.start(client, (guildId, wanted) => status.findChannel(client, guildId, wanted));
             if (config.statusChannelId) {
                 refreshStatusMessage();
                 setInterval(refreshStatusMessage, 60000);   // Discord rate-limits edits, so not faster

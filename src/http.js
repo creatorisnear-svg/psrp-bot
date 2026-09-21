@@ -34,7 +34,7 @@ function readJson(req) {
     });
 }
 
-function startServer(config, game, health, log = console.log, onShift = null, onLifecycle = null) {
+function startServer(config, game, health, log = console.log, onShift = null, onLifecycle = null, logs = null) {
     const server = http.createServer(async (req, res) => {
         const path = (req.url || '/').split('?')[0];
         try {
@@ -79,6 +79,17 @@ function startServer(config, game, health, log = console.log, onShift = null, on
                 game.setLifecycle(body.state, body.seconds);
                 if (onLifecycle) onLifecycle();
                 return send(res, 200, { ok: true });
+            }
+            // Server logs. Accepts one entry or a batch, and answers immediately - the game must
+            // never wait on Discord to finish recording something.
+            if (req.method === 'POST' && path === '/log') {
+                if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
+                if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
+                const body = await readJson(req);
+                const entries = Array.isArray(body.entries) ? body.entries : [body];
+                let taken = 0;
+                for (const entry of entries.slice(0, 100)) if (logs && logs.add(entry)) taken += 1;
+                return send(res, 200, { ok: true, taken });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
                 if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });

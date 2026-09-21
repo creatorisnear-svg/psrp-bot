@@ -20,6 +20,13 @@ const config = {
     statusChannelId: read('STATUS_CHANNEL_ID') || read('STATUS_CHANNEL'),
     // Where new members are greeted. Set WELCOME_CHANNEL to an empty string to switch it off.
     welcomeChannel: process.env.WELCOME_CHANNEL === '' ? '' : read('WELCOME_CHANNEL', 'welcome'),
+    // Per-category log channels. LOG_CHANNEL_JOINS=... overrides one; anything unset falls back to
+    // the category default (logs-joins, logs-chat, and so on).
+    logChannels: Object.fromEntries(
+        ['joins', 'chat', 'deaths', 'money', 'items', 'staff', 'server']
+            .map((k) => [k, read(`LOG_CHANNEL_${k.toUpperCase()}`)])
+            .filter(([, v]) => v),
+    ),
 };
 
 // What is stopping each half from working. Empty lists mean that half is ready to run.
