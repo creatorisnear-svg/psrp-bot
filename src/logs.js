@@ -4,7 +4,7 @@
 // entries are QUEUED PER CHANNEL and flushed together on a timer. Without that, a shooting or a
 // mass disconnect would hit the rate limit and the entries would be dropped - and a log that
 // silently drops the busiest moments is worse than no log, because it is trusted.
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const FLUSH_MS = 2500;          // how often a channel's queue is sent
 const MAX_LINES = 18;           // lines per message, so one flush cannot exceed the embed limit
@@ -12,14 +12,19 @@ const MAX_QUEUE = 500;          // per channel, so a runaway loop cannot exhaust
 const MAX_CHARS = 3800;
 const MISS_RETRY_MS = 60000;    // how long a "that channel does not exist" answer is believed
 
-// category -> the channel name to look for, and the colour of its embed
+// category -> the channel name to look for, and the colour of its embed.
+//
+// `private` marks the two that must never be written into a channel the whole server can read. Chat
+// carries what players type to each other, including the staff channel and the anonymous VPN board;
+// staff carries ban and kick reasons. Posting either in public would do real damage to the server,
+// and a misconfigured channel is an easy mistake to make, so those two refuse rather than warn.
 const CATEGORIES = {
     joins: { channel: 'logs-joins', colour: 0x57c46b, title: 'Connections' },
-    chat: { channel: 'logs-chat', colour: 0x8fa3b8, title: 'Chat' },
+    chat: { channel: 'logs-chat', colour: 0x8fa3b8, title: 'Chat', private: true },
     deaths: { channel: 'logs-deaths', colour: 0xe5686c, title: 'Deaths' },
     money: { channel: 'logs-money', colour: 0xffc53d, title: 'Money' },
     items: { channel: 'logs-items', colour: 0xc3a6d6, title: 'Inventory' },
-    staff: { channel: 'logs-staff', colour: 0xdfb562, title: 'Staff' },
+    staff: { channel: 'logs-staff', colour: 0xdfb562, title: 'Staff', private: true },
     server: { channel: 'logs-server', colour: 0x5865f2, title: 'Server' },
 };
 const FALLBACK = { channel: 'logs', colour: 0x8b9099, title: 'Log' };
@@ -76,20 +81,12 @@ class Logs {
     // listed with their ids, so the name can be corrected instead of guessed at.
     async audit(resolveChannel, listChannels) {
         const missing = [];
-        const lines = [];
         for (const category of Object.keys(CATEGORIES)) {
-            const wanted = this.config.logChannels[category] || this.spec(category).channel;
-            const channel = await resolveChannel(this.config.guildId, wanted);
-            this.channels.set(category, channel);
-            if (channel) {
-                lines.push(`${category} -> #${channel.name}`);
-            } else {
-                this.missedAt.set(category, Date.now());
-                lines.push(`${category} -> nothing matching "${wanted}"`);
-                missing.push(category);
-            }
+            // channelFor does the resolving, the fallback and the privacy check, and says where each
+            // one landed - so this stays the one description of where a category goes.
+            const channel = await this.channelFor(category, resolveChannel);
+            if (!channel) missing.push(category);
         }
-        this.log(`logs: ${lines.join(' | ')}`);
         if (!missing.length || !listChannels) return;
 
         const all = await listChannels().catch(() => []);
@@ -121,20 +118,46 @@ class Logs {
         this.timer = null;
     }
 
+    // Can everyone in the Discord server read this channel? Unknown counts as yes, because guessing
+    // "private" wrongly is the expensive direction.
+    everyoneCanRead(channel) {
+        try {
+            const everyone = channel.guild.roles.everyone;
+            return !!channel.permissionsFor(everyone)?.has(PermissionFlagsBits.ViewChannel);
+        } catch {
+            return true;
+        }
+    }
+
     // A channel that was found is cached for good. A channel that was NOT found is remembered only
     // for a minute: someone creating the channel afterwards should start getting logs by themselves,
-    // rather than the bot refusing to look again until its next deploy.
+    // rather than the bot refusing to look again until its next deploy. When a category has no
+    // channel of its own, LOG_CHANNEL_FALLBACK takes the entries so nothing is thrown away while
+    // the proper channels are still being made.
     async channelFor(category, resolveChannel) {
         const cached = this.channels.get(category);
         if (cached) return cached;
         if (this.channels.has(category) && Date.now() - (this.missedAt.get(category) || 0) < MISS_RETRY_MS) return null;
 
-        const wanted = this.config.logChannels[category] || this.spec(category).channel;
-        const channel = await resolveChannel(this.config.guildId, wanted);
+        const spec = this.spec(category);
+        const wanted = this.config.logChannels[category] || spec.channel;
+        let channel = await resolveChannel(this.config.guildId, wanted);
+        let viaFallback = false;
+        if (!channel && this.config.logFallback) {
+            channel = await resolveChannel(this.config.guildId, this.config.logFallback);
+            viaFallback = !!channel;
+        }
+
+        if (channel && spec.private && this.everyoneCanRead(channel)) {
+            this.log(`logs: refusing to write ${category} into #${channel.name} - everyone in the server can read it, `
+                + 'and these entries are not for everyone. Make the channel private, or point this category somewhere else.');
+            channel = null;
+        }
+
         this.channels.set(category, channel);
         if (channel) {
             this.missedAt.delete(category);
-            this.log(`logs: ${category} -> #${channel.name}`);
+            this.log(`logs: ${category} -> #${channel.name}${viaFallback ? ' (fallback - it has no channel of its own yet)' : ''}`);
         } else {
             this.missedAt.set(category, Date.now());
             this.log(`logs: no channel matching "${wanted}" for ${category} - those entries are being discarded`);

@@ -38,7 +38,8 @@ the game always reads roles from Discord itself, the bot only says "look again n
 | `STATUS_CHANNEL_ID` | optional - a channel where the bot keeps one status message up to date |
 | `SERVER_NAME` | optional - defaults to Palm Springs Roleplay |
 | `WELCOME_CHANNEL` | optional - defaults to `welcome`. Set it to nothing to turn the greeting off |
-| `LOG_CHANNEL_JOINS` and friends | optional - only if a log channel is not named `logs-joins` etc. |
+| `LOG_CHANNEL_JOINS` and friends | optional - a channel name or id, if a log channel is not named `logs-joins` etc. |
+| `LOG_CHANNEL_FALLBACK` | optional - holds log entries for any category that has no channel of its own yet |
 
 4. Deploy, then copy the service's public address (`https://something.koyeb.app`).
 
@@ -68,10 +69,20 @@ Restart the game server.
 ## Server logs
 
 `psrp_logs` on the game server sends what happens in the city to the bot, which writes it into one
-channel per kind: connections, chat, deaths, money, inventory, staff and server. Run **`/setuplogs`**
-once in Discord to create them - it shows what it would make, and only creates anything when you run
-it again with `confirm: true`. They are made hidden from everyone, so add your staff roles to the
-**Server Logs** category afterwards.
+channel per kind: connections, chat, deaths, money, inventory, staff and server.
+
+Run **`/setuplogs`** in Discord to create any of those channels that do not exist. It shows what it
+would make, and only makes anything when you run it again with `confirm: true`. If the server
+already has a category for logs it puts them in there and uses its permissions; otherwise it makes a
+**Server Logs** category hidden from everyone, and you add your staff roles to it.
+
+Each category can also be pointed at a channel you already have, by name or by id, with
+`LOG_CHANNEL_STAFF` and friends. Anything with no channel of its own goes to `LOG_CHANNEL_FALLBACK`
+until one exists, so nothing is thrown away in the meantime, and it moves across by itself once the
+channel appears.
+
+Chat and staff refuse to write into a channel everyone in the Discord can read - chat carries what
+players say to each other, staff carries ban reasons - and say so in the bot log rather than posting.
 
 It reuses `psrp_discord_sync_key` and `psrp_discord_bot_url`, so there is nothing new to set on the
 game server. What goes into which channel is in `resources/psrp_logs/config.lua`, and any category

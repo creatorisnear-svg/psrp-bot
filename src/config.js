@@ -27,6 +27,9 @@ const config = {
             .map((k) => [k, read(`LOG_CHANNEL_${k.toUpperCase()}`)])
             .filter(([, v]) => v),
     ),
+    // Where entries go while a category still has no channel of its own, so nothing is thrown away
+    // in the meantime. A category moves to its own channel by itself once that channel exists.
+    logFallback: read('LOG_CHANNEL_FALLBACK'),
 };
 
 // What is stopping each half from working. Empty lists mean that half is ready to run.

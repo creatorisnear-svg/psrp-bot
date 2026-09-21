@@ -54,9 +54,13 @@ async function handle(interaction, config) {
     }
 
     if (!confirm) {
+        const existingCategory = [...channels.values()].find((c) => c && c.type === ChannelType.GuildCategory
+            && (plain(c.name) === plain(PARENT) || plain(c.name).includes('log')));
         return interaction.editReply(
-            `This would create ${missing.length} channel${missing.length === 1 ? '' : 's'} under a **${PARENT}** category, `
-            + 'hidden from @everyone:\n'
+            `This would create ${missing.length} channel${missing.length === 1 ? '' : 's'} `
+            + (existingCategory
+                ? `under your existing **${existingCategory.name}** category, using its permissions:\n`
+                : `under a new **${PARENT}** category, hidden from @everyone:\n`)
             + `${listed(missing)}\n`
             + (present.length ? `\nAlready there, and left alone:\n${listed(present)}\n` : '')
             + '\nRun it again with `confirm: true` to create them.'
@@ -75,7 +79,14 @@ async function handle(interaction, config) {
         { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks] },
     ];
 
-    let parent = [...channels.values()].find((c) => c && c.type === ChannelType.GuildCategory && plain(c.name) === plain(PARENT));
+    // Put them where the server already keeps its logs. Making a second log category beside an
+    // existing one splits them in two and leaves whoever reads them checking both.
+    const categories = [...channels.values()].filter((c) => c && c.type === ChannelType.GuildCategory);
+    let parent = categories.find((c) => plain(c.name) === plain(PARENT))
+        || categories.find((c) => plain(c.name).includes('log'));
+    // Reusing a category means its permissions are already right for whoever reads logs here, so the
+    // new channels inherit them. Only a category we make ourselves gets locked down by us.
+    const reused = !!parent;
     const made = [];
     const failed = [];
     try {
@@ -94,7 +105,7 @@ async function handle(interaction, config) {
                 type: ChannelType.GuildText,
                 parent: parent ? parent.id : undefined,
                 topic: `${CATEGORIES[w.category].title} from the game server. Written by the bot - do not rename.`,
-                permissionOverwrites: hidden,
+                ...(reused ? {} : { permissionOverwrites: hidden }),
             });
             made.push(`• ${CATEGORIES[w.category].title}: <#${channel.id}>`);
         } catch (err) {
@@ -105,8 +116,9 @@ async function handle(interaction, config) {
     return interaction.editReply(
         (made.length ? `Created:\n${made.join('\n')}\n\n` : '')
         + (failed.length ? `Could not create:\n• ${failed.join('\n• ')}\n\n` : '')
-        + 'They are hidden from everyone but me. Add your staff roles to the '
-        + `**${PARENT}** category so staff can read them.`
+        + (reused
+            ? `They are under your existing **${parent.name}** category and use its permissions, so whoever can read your other logs can read these.`
+            : `They are under a new **${PARENT}** category, hidden from everyone but me. Add your staff roles to that category so staff can read them.`)
     );
 }
 
