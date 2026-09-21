@@ -50,6 +50,9 @@ function startServer(config, game, health, log = console.log, onShift = null) {
                     // Echo what the game last sent. Nothing private, and it is the only way to check
                     // the whole chain - HUD -> game -> bot -> Discord - without being in the city.
                     heartbeatAge: game.ageSeconds(),
+                    // How long THIS process has been up. A redeploy resets the cached game state,
+                    // which from outside looks identical to the game sending empty beats.
+                    botUptime: Math.round(process.uptime()),
                     ...(live ? {
                         players: game.state.players,
                         aop: game.state.aop,
