@@ -45,6 +45,7 @@ class Logs {
         this.queues = new Map();      // category -> [line]
         this.channels = new Map();    // category -> channel, cached after the first lookup
         this.missedAt = new Map();    // category -> when the lookup last found nothing
+        this.wrote = new Set();       // channel ids we have successfully posted in at least once
         this.dropped = 0;
         this.timer = null;
     }
@@ -167,21 +168,44 @@ class Logs {
 
     async flush(client, resolveChannel) {
         if (!client) return;
+
+        // Resolve first, then group BY CHANNEL. Several categories often share one - a fallback
+        // channel, or a server that keeps all its logs in one place - and one message per category
+        // into the same channel is six messages every few seconds, which Discord rate limits.
+        const byChannel = new Map();
         for (const [category, queue] of this.queues) {
             if (!queue.length) continue;
             const channel = await this.channelFor(category, resolveChannel);
             if (!channel) { queue.length = 0; continue; }
+            if (!byChannel.has(channel.id)) byChannel.set(channel.id, { channel, parts: [] });
+            byChannel.get(channel.id).parts.push({ category, queue });
+        }
 
+        for (const { channel, parts } of byChannel.values()) {
+            const mixed = parts.length > 1;
             const lines = [];
             let size = 0;
-            while (queue.length && lines.length < MAX_LINES && size < MAX_CHARS) {
-                size += queue[0].length + 1;
-                lines.push(queue.shift());
+            // Round robin, so one loud category cannot starve the others out of every message.
+            let took = true;
+            while (took && lines.length < MAX_LINES && size < MAX_CHARS) {
+                took = false;
+                for (const part of parts) {
+                    if (!part.queue.length || lines.length >= MAX_LINES || size >= MAX_CHARS) continue;
+                    const line = mixed ? `${this.spec(part.category).title} ${part.queue.shift()}` : part.queue.shift();
+                    size += line.length + 1;
+                    lines.push(line);
+                    took = true;
+                }
             }
-            const spec = this.spec(category);
+            if (!lines.length) continue;
+            // Every line starts with its own timestamp, so sorting puts a mixed channel back into
+            // the order the events actually happened in.
+            if (mixed) lines.sort((a, b) => (a.slice(a.indexOf('`')) < b.slice(b.indexOf('`')) ? -1 : 1));
+
+            const spec = mixed ? FALLBACK : this.spec(parts[0].category);
             const embed = new EmbedBuilder()
                 .setColor(spec.colour)
-                .setTitle(spec.title)
+                .setTitle(mixed ? 'Server log' : spec.title)
                 .setDescription(lines.join('\n').slice(0, 4000))
                 .setTimestamp(new Date());
             if (this.dropped) {
@@ -190,9 +214,16 @@ class Logs {
             }
             try {
                 await channel.send({ embeds: [embed] });
+                // Resolving a channel and being allowed to post in it are different things, and the
+                // difference only shows on the first real entry. Say so once, then stay quiet.
+                if (!this.wrote.has(channel.id)) {
+                    this.wrote.add(channel.id);
+                    this.log(`logs: first entry written to #${channel.name}`);
+                }
             } catch (err) {
                 this.log(`logs: could not write to #${channel.name} (${err.message})`);
-                this.channels.delete(category);   // look it up again next time, in case it was deleted
+                // Look the channel up again next time, in case it was deleted or renamed.
+                for (const part of parts) this.channels.delete(part.category);
             }
         }
     }
