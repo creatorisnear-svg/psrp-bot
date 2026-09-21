@@ -37,6 +37,8 @@ the game always reads roles from Discord itself, the bot only says "look again n
 | `CONNECT_URL` | optional - shown in `/status`, e.g. `cfx.re/join/xxxxxx` |
 | `STATUS_CHANNEL_ID` | optional - a channel where the bot keeps one status message up to date |
 | `SERVER_NAME` | optional - defaults to Palm Springs Roleplay |
+| `WELCOME_CHANNEL` | optional - defaults to `welcome`. Set it to nothing to turn the greeting off |
+| `LOG_CHANNEL_JOINS` and friends | optional - only if a log channel is not named `logs-joins` etc. |
 
 4. Deploy, then copy the service's public address (`https://something.koyeb.app`).
 
@@ -62,6 +64,18 @@ Restart the game server.
 * Discord: the bot is online and shows `0 / 64 in the city`. `/status` answers.
 * Game server console after a restart: `[psrp_discord] ready: ...` instead of `idle`.
 * Give yourself a mapped role while in game: it applies within a couple of seconds.
+
+## Server logs
+
+`psrp_logs` on the game server sends what happens in the city to the bot, which writes it into one
+channel per kind: connections, chat, deaths, money, inventory, staff and server. Run **`/setuplogs`**
+once in Discord to create them - it shows what it would make, and only creates anything when you run
+it again with `confirm: true`. They are made hidden from everyone, so add your staff roles to the
+**Server Logs** category afterwards.
+
+It reuses `psrp_discord_sync_key` and `psrp_discord_bot_url`, so there is nothing new to set on the
+game server. What goes into which channel is in `resources/psrp_logs/config.lua`, and any category
+can be switched off there.
 
 ## Running the hosting from the command line
 
