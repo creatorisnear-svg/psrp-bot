@@ -30,6 +30,9 @@ const config = {
     // Where entries go while a category still has no channel of its own, so nothing is thrown away
     // in the meantime. A category moves to its own channel by itself once that channel exists.
     logFallback: read('LOG_CHANNEL_FALLBACK'),
+    // Set SETUP_LOGS=1 to have the bot create any missing log channels the next time it starts,
+    // instead of somebody running /setuplogs. It only ever creates what is missing.
+    setupLogs: process.env.SETUP_LOGS === '1',
 };
 
 // What is stopping each half from working. Empty lists mean that half is ready to run.

@@ -18,14 +18,17 @@ const MISS_RETRY_MS = 60000;    // how long a "that channel does not exist" answ
 // carries what players type to each other, including the staff channel and the anonymous VPN board;
 // staff carries ban and kick reasons. Posting either in public would do real damage to the server,
 // and a misconfigured channel is an easy mistake to make, so those two refuse rather than warn.
+// The names follow the "<thing>-logs" style this server already uses for psrpstaff-logs and
+// random-logs, rather than imposing a different one alongside them. It also means the staff
+// category finds psrpstaff-logs on its own, since "stafflogs" is inside "psrpstafflogs".
 const CATEGORIES = {
-    joins: { channel: 'logs-joins', colour: 0x57c46b, title: 'Connections' },
-    chat: { channel: 'logs-chat', colour: 0x8fa3b8, title: 'Chat', private: true },
-    deaths: { channel: 'logs-deaths', colour: 0xe5686c, title: 'Deaths' },
-    money: { channel: 'logs-money', colour: 0xffc53d, title: 'Money' },
-    items: { channel: 'logs-items', colour: 0xc3a6d6, title: 'Inventory' },
-    staff: { channel: 'logs-staff', colour: 0xdfb562, title: 'Staff', private: true },
-    server: { channel: 'logs-server', colour: 0x5865f2, title: 'Server' },
+    joins: { channel: 'join-logs', colour: 0x57c46b, title: 'Connections' },
+    chat: { channel: 'chat-logs', colour: 0x8fa3b8, title: 'Chat', private: true },
+    deaths: { channel: 'death-logs', colour: 0xe5686c, title: 'Deaths' },
+    money: { channel: 'money-logs', colour: 0xffc53d, title: 'Money' },
+    items: { channel: 'item-logs', colour: 0xc3a6d6, title: 'Inventory' },
+    staff: { channel: 'staff-logs', colour: 0xdfb562, title: 'Staff', private: true },
+    server: { channel: 'server-logs', colour: 0x5865f2, title: 'Server' },
 };
 const FALLBACK = { channel: 'logs', colour: 0x8b9099, title: 'Log' };
 

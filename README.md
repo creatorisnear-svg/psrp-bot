@@ -76,6 +76,10 @@ would make, and only makes anything when you run it again with `confirm: true`. 
 already has a category for logs it puts them in there and uses its permissions; otherwise it makes a
 **Server Logs** category hidden from everyone, and you add your staff roles to it.
 
+Setting `SETUP_LOGS=1` does the same thing at start-up, without anyone running the command. It only
+ever creates what is missing, so leaving it on is harmless - but it will put back a channel you
+delete on purpose, so turn it off once the channels exist.
+
 Each category can also be pointed at a channel you already have, by name or by id, with
 `LOG_CHANNEL_STAFF` and friends. Anything with no channel of its own goes to `LOG_CHANNEL_FALLBACK`
 until one exists, so nothing is thrown away in the meantime, and it moves across by itself once the

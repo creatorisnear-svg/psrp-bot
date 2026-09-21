@@ -11,6 +11,7 @@ const { startServer } = require('./http');
 const shift = require('./shift');
 const status = require('./status');
 const welcome = require('./welcome');
+const setuplogs = require('./setuplogs');
 const { Logs } = require('./logs');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
@@ -148,6 +149,9 @@ async function startDiscord() {
             refreshPresence().catch(() => {});
             setInterval(() => refreshPresence().catch(() => {}), 30000);
             refreshPanel = refreshStatusMessage;
+            // Build any missing log channels BEFORE the logger looks for them, so it binds to the
+            // new ones on its first pass instead of falling back for a minute first.
+            if (config.setupLogs) await setuplogs.runAtStartup(client, config, log);
             logs.start(client, (guildId, wanted) => status.findChannel(client, guildId, wanted), listChannels);
             if (config.statusChannelId) {
                 refreshStatusMessage();
