@@ -34,7 +34,7 @@ function readJson(req) {
     });
 }
 
-function startServer(config, game, health, log = console.log, onShift = null, onLifecycle = null, logs = null) {
+function startServer(config, game, health, log = console.log, onShift = null, onLifecycle = null, logs = null, onChannels = null) {
     const server = http.createServer(async (req, res) => {
         const path = (req.url || '/').split('?')[0];
         try {
@@ -90,6 +90,15 @@ function startServer(config, game, health, log = console.log, onShift = null, on
                 let taken = 0;
                 for (const entry of entries.slice(0, 100)) if (logs && logs.add(entry)) taken += 1;
                 return send(res, 200, { ok: true, taken });
+            }
+            // The channels this Discord server has, so log categories can be pointed at channels
+            // that already exist instead of anyone copying ids off a screen. Names and ids only -
+            // nothing anyone in the server cannot already see - and still behind the key.
+            if (req.method === 'GET' && path === '/channels') {
+                if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
+                if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
+                if (!onChannels) return send(res, 503, { error: 'not connected to Discord yet' });
+                return send(res, 200, { channels: await onChannels() });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
                 if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });

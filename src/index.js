@@ -34,7 +34,19 @@ let refreshPanel = null;      // set once Discord is up, so an announcement can 
 const server = startServer(config, game, { discord: () => discordReady, needs }, log,
     (payload) => shift.deliver(client, config, payload, log),
     () => { if (refreshPanel) refreshPanel(); },       // a restart announcement repaints at once
-    logs);
+    logs,
+    async () => {
+        if (!client) return [];
+        const guild = await client.guilds.fetch(config.guildId);
+        const channels = await guild.channels.fetch();
+        return [...channels.values()].filter(Boolean).map((c) => ({
+            id: c.id,
+            name: c.name,
+            parent: c.parent ? c.parent.name : null,
+            text: typeof c.isTextBased === 'function' && c.isTextBased(),
+            position: c.rawPosition,
+        }));
+    });
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {
