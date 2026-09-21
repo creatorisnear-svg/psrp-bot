@@ -11,6 +11,17 @@ function send(res, status, body) {
     res.end(text);
 }
 
+// /health is the one endpoint a browser is allowed to read cross-origin, so the public site can show
+// the player count. It costs nothing that is not already exposed: the endpoint takes no key, returns
+// no private data, and anyone with the URL can already read it with curl - CORS only ever restricted
+// browsers, never anything else. Deliberately NOT applied to the POST endpoints, which carry the
+// sync key, and deliberately no Allow-Credentials, which must never pair with a wildcard origin.
+function allowCrossOrigin(res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Max-Age', '86400');
+}
+
 function authorised(req, key) {
     const header = String(req.headers.authorization || '');
     const given = Buffer.from(header.startsWith('Bearer ') ? header.slice(7) : '');
@@ -38,7 +49,14 @@ function startServer(config, game, health, log = console.log, onShift = null, on
     const server = http.createServer(async (req, res) => {
         const path = (req.url || '/').split('?')[0];
         try {
+            // A simple GET needs no preflight, but a browser that ever sends one should not meet a 404.
+            if (req.method === 'OPTIONS' && (path === '/' || path === '/health')) {
+                allowCrossOrigin(res);
+                res.writeHead(204, { 'Content-Length': '0' });
+                return res.end();
+            }
             if (req.method === 'GET' && (path === '/' || path === '/health')) {
+                allowCrossOrigin(res);
                 const waiting = [...(health.needs ? health.needs.discord : []), ...(health.needs ? health.needs.game : [])];
                 const live = game.state.online && game.fresh();
                 // 200 even while waiting: the service is up, it just has nothing to do yet.
