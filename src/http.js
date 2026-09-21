@@ -34,7 +34,7 @@ function readJson(req) {
     });
 }
 
-function startServer(config, game, health, log = console.log, onShift = null) {
+function startServer(config, game, health, log = console.log, onShift = null, onLifecycle = null) {
     const server = http.createServer(async (req, res) => {
         const path = (req.url || '/').split('?')[0];
         try {
@@ -53,6 +53,7 @@ function startServer(config, game, health, log = console.log, onShift = null) {
                     // How long THIS process has been up. A redeploy resets the cached game state,
                     // which from outside looks identical to the game sending empty beats.
                     botUptime: Math.round(process.uptime()),
+                    ...(game.lifecycleState() ? { announced: game.lifecycleState().state } : {}),
                     ...(live ? {
                         players: game.state.players,
                         aop: game.state.aop,
@@ -69,6 +70,15 @@ function startServer(config, game, health, log = console.log, onShift = null) {
                 if (!onShift) return send(res, 503, { error: 'not connected to Discord yet' });
                 const result = await onShift(shift);
                 return send(res, 200, { ok: !!result.ok, ...(result.reason ? { reason: result.reason } : {}) });
+            }
+            // The game announcing its own state - a scheduled restart, or going down now.
+            if (req.method === 'POST' && path === '/state') {
+                if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
+                if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
+                const body = await readJson(req);
+                game.setLifecycle(body.state, body.seconds);
+                if (onLifecycle) onLifecycle();
+                return send(res, 200, { ok: true });
             }
             if (req.method === 'POST' && path === '/heartbeat') {
                 if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });

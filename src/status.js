@@ -8,22 +8,37 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 const GREEN = 0x57c46b;
 const RED = 0xe5686c;
+const AMBER = 0xffc53d;
 
 const clock = (s) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
 
-function embed(config, state) {
+// How long until a scheduled restart, in words.
+const soon = (seconds) => {
+    if (!seconds || seconds <= 0) return 'now';
+    if (seconds < 90) return `in under a minute`;
+    return `in about ${Math.round(seconds / 60)} minutes`;
+};
+
+function embed(config, state, announced) {
     const online = !!state.online;
+    // An announced restart outranks the heartbeat: the server may still be answering while it
+    // counts down, and it will stop answering in the middle of one.
+    const restarting = announced && announced.state === 'restarting';
+
     const e = new EmbedBuilder()
         .setTitle(`${config.serverName} Status`)
-        .setColor(online ? GREEN : RED)
+        .setColor(restarting ? AMBER : online ? GREEN : RED)
         .setDescription(
-            online
-                ? 'Updated every minute with the live player count, the area of patrol and the priority board.'
-                : '**The server is offline.** This panel updates itself the moment it comes back.'
+            restarting
+                ? `**Restarting ${soon(announced.seconds)}.** The panel comes back on its own once the server is up.`
+                : online
+                    ? 'Updated every minute with the live player count, the area of patrol and the priority board.'
+                    : '**The server is offline.** This panel updates itself the moment it comes back.'
         )
         .setTimestamp(new Date())
         .setFooter({ text: 'Palm Springs Roleplay' });
 
+    if (restarting && !online) return e;
     if (!online) return e;
 
     const max = state.max || 0;
@@ -59,16 +74,17 @@ function embed(config, state) {
 
 // Discord only allows link buttons to carry a URL, and a plain button must have a custom id even
 // when it is disabled - which the player count is, because it is a readout and not a control.
-function buttons(config, state) {
+function buttons(config, state, announced) {
     const row = new ActionRowBuilder();
+    const restarting = announced && announced.state === 'restarting';
 
     row.addComponents(
         new ButtonBuilder()
             .setCustomId('psrp_players')
-            .setLabel(state.online
-                ? `${state.players} ${state.players === 1 ? 'Player' : 'Players'} in the City`
+            .setLabel(restarting ? 'Restarting'
+                : state.online ? `${state.players} ${state.players === 1 ? 'Player' : 'Players'} in the City`
                 : 'Server Offline')
-            .setStyle(state.online ? ButtonStyle.Success : ButtonStyle.Danger)
+            .setStyle(restarting ? ButtonStyle.Secondary : state.online ? ButtonStyle.Success : ButtonStyle.Danger)
             .setDisabled(true),
     );
 

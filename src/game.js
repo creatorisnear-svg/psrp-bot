@@ -13,14 +13,31 @@ class Game {
         this.config = config;
         this.log = log;
         this.state = { at: 0, online: false, players: 0, max: 0, staff: null, aop: null, priorities: [], list: [], source: 'none' };
+        // What the game last said about its own lifecycle, with the moment it said it. A heartbeat
+        // arriving means it is back, so this is cleared there rather than timed out on its own.
+        this.lifecycle = null;
         this.pending = new Set();
         this.syncTimer = null;
         this.reloadTimer = null;
     }
 
     // ---- game -> bot ---------------------------------------------------------------------------
+    // 'restarting' from txAdmin, with seconds remaining when it is scheduled rather than immediate.
+    setLifecycle(state, seconds) {
+        this.lifecycle = { state: String(state || '').slice(0, 20), seconds: Number(seconds) || 0, at: Date.now() };
+    }
+
+    // Anything the game says about itself goes stale - a restart that never completes should not
+    // leave the panel claiming "restarting" for ever.
+    lifecycleState() {
+        if (!this.lifecycle) return null;
+        if (Date.now() - this.lifecycle.at > 10 * 60 * 1000) return null;
+        return this.lifecycle;
+    }
+
     heartbeat(body) {
         const list = Array.isArray(body.list) ? body.list : [];
+        this.lifecycle = null;      // it is answering again, so whatever it announced is over
         const aop = typeof body.aop === 'string' && body.aop.trim() ? body.aop.trim().slice(0, 60) : null;
         const priorities = Array.isArray(body.priorities) && body.priorities.length
             ? body.priorities.slice(0, 12).map((p) => ({

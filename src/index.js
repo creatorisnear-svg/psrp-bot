@@ -25,10 +25,12 @@ if (needs.discord.length || needs.game.length) {
 const game = new Game(config, log);
 let client = null;
 let discordReady = false;
+let refreshPanel = null;      // set once Discord is up, so an announcement can repaint immediately
 // The web server is up before Discord is, so the shift handler reads `client` when it fires
 // rather than capturing whatever it was at start-up.
 const server = startServer(config, game, { discord: () => discordReady, needs }, log,
-    (payload) => shift.deliver(client, config, payload, log));
+    (payload) => shift.deliver(client, config, payload, log),
+    () => { if (refreshPanel) refreshPanel(); });      // a restart announcement repaints at once
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {
@@ -63,7 +65,11 @@ async function startDiscord() {
             if (!channel) throw new Error(`no text channel matching "${config.statusChannelId}"`);
 
             const state = await game.status();
-            const payload = { embeds: [status.embed(config, state)], components: status.buttons(config, state) };
+            const announced = game.lifecycleState();
+            const payload = {
+                embeds: [status.embed(config, state, announced)],
+                components: status.buttons(config, state, announced),
+            };
 
             // Re-use the panel already in the channel rather than posting a second one after a
             // redeploy - the bot forgets which message was its own every time it restarts.
@@ -117,6 +123,7 @@ async function startDiscord() {
             timersStarted = true;
             refreshPresence().catch(() => {});
             setInterval(() => refreshPresence().catch(() => {}), 30000);
+            refreshPanel = refreshStatusMessage;
             if (config.statusChannelId) {
                 refreshStatusMessage();
                 setInterval(refreshStatusMessage, 60000);   // Discord rate-limits edits, so not faster
