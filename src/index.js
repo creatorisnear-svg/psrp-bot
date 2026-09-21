@@ -10,6 +10,7 @@ const { Game } = require('./game');
 const { startServer } = require('./http');
 const shift = require('./shift');
 const status = require('./status');
+const welcome = require('./welcome');
 
 const log = (text) => console.log(`[${new Date().toISOString()}] ${text}`);
 
@@ -135,6 +136,9 @@ async function startDiscord() {
             } else {
                 log('status panel: set STATUS_CHANNEL to a channel name or id to switch it on');
             }
+            log(config.welcomeChannel
+                ? `welcome: greeting new members in "${config.welcomeChannel}"`
+                : 'welcome: off (WELCOME_CHANNEL is empty)');
         });
 
         instance.on(Events.InteractionCreate, (interaction) => {
@@ -149,6 +153,11 @@ async function startDiscord() {
         });
         instance.on(Events.GuildMemberRemove, (member) => {
             if (member.guild.id === config.guildId) game.queueSync(member.id);
+        });
+        instance.on(Events.GuildMemberAdd, (member) => {
+            if (member.guild.id !== config.guildId) return;
+            welcome.greet(member, config, (guildId, wanted) => status.findChannel(client, guildId, wanted), log)
+                .catch((err) => log(`welcome failed: ${err.message}`));
         });
         // A role itself was created, renamed or deleted: roles.lua may name it.
         instance.on(Events.GuildRoleCreate, (role) => { if (role.guild.id === config.guildId) game.queueReload(); });

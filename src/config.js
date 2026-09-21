@@ -18,6 +18,8 @@ const config = {
     storeUrl: read('STORE_URL', 'https://psrpnetwork.online'),
     // A channel id, or just its name - "server-status" works, emoji and separators and all.
     statusChannelId: read('STATUS_CHANNEL_ID') || read('STATUS_CHANNEL'),
+    // Where new members are greeted. Set WELCOME_CHANNEL to an empty string to switch it off.
+    welcomeChannel: process.env.WELCOME_CHANNEL === '' ? '' : read('WELCOME_CHANNEL', 'welcome'),
 };
 
 // What is stopping each half from working. Empty lists mean that half is ready to run.
