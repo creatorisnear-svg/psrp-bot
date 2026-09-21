@@ -47,17 +47,27 @@ class Game {
             }))
             : null;
 
+        // The game filters its own phantom slot, but this number is on a public page now, so it is
+        // re-checked here rather than trusted. A real player has a positive id and a name; the
+        // phantom is id 0 called "Player". Where the list disagrees with the count, the list wins,
+        // because the count is a single integer nobody downstream can sanity check.
+        const real = list.filter((p) => p && Number(p.id) > 0 && String(p.name || '').trim());
+        const claimed = Number.isFinite(Number(body.players)) ? Number(body.players) : real.length;
+        if (claimed !== real.length) {
+            this.log(`heartbeat said ${claimed} player(s) but ${real.length} look real - using ${real.length}`);
+        }
+
         this.state = {
             at: Date.now(),
             online: true,
-            players: Number.isFinite(Number(body.players)) ? Number(body.players) : list.length,
+            players: real.length,
             max: Number(body.max) || 0,
             staff: Number.isFinite(Number(body.staff)) ? Number(body.staff) : null,
             // Kept from the last beat that had them. The game always sends a default, so a beat
             // without them means psrp_hud had not started yet, not that they were cleared.
             aop: aop || this.state.aop,
             priorities: priorities || this.state.priorities,
-            list: list.slice(0, 256).map((p) => ({ id: Number(p.id) || 0, name: String(p.name || 'Unknown').slice(0, 48) })),
+            list: real.slice(0, 256).map((p) => ({ id: Number(p.id), name: String(p.name).slice(0, 48) })),
             source: 'heartbeat',
         };
     }
