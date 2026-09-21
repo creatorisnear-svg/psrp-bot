@@ -28,6 +28,10 @@ const stamp = (d) => `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.get
 // Discord renders these as formatting, and a player name is attacker-controlled text.
 const clean = (s) => String(s == null ? '' : s).replace(/[`*_~|\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 300);
 
+// Channel names are dressed up with emoji and separators, so they are compared on the letters only -
+// the same normalisation findChannel uses.
+const plain = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 class Logs {
     constructor(config, log = console.log) {
         this.config = config;
@@ -57,10 +61,42 @@ class Logs {
         return true;
     }
 
-    start(client, resolveChannel) {
+    start(client, resolveChannel, listChannels = null) {
         if (this.timer) return;
         this.timer = setInterval(() => this.flush(client, resolveChannel).catch(() => {}), FLUSH_MS);
         this.timer.unref?.();
+        this.audit(resolveChannel, listChannels).catch(() => {});
+    }
+
+    // Say at start-up where each category is going. Silence here used to mean either "working" or
+    // "every entry is being thrown away because the channel is named something else" - the same
+    // silence for both. When a category finds nothing, the channels that look like log channels are
+    // listed with their ids, so the name can be corrected instead of guessed at.
+    async audit(resolveChannel, listChannels) {
+        const missing = [];
+        const lines = [];
+        for (const category of Object.keys(CATEGORIES)) {
+            const wanted = this.config.logChannels[category] || this.spec(category).channel;
+            const channel = await resolveChannel(this.config.guildId, wanted);
+            this.channels.set(category, channel);
+            if (channel) {
+                lines.push(`${category} -> #${channel.name}`);
+            } else {
+                lines.push(`${category} -> nothing matching "${wanted}"`);
+                missing.push(category);
+            }
+        }
+        this.log(`logs: ${lines.join(' | ')}`);
+        if (!missing.length || !listChannels) return;
+
+        const all = await listChannels().catch(() => []);
+        const candidates = all.filter((c) => c.text && plain(c.name).includes('log'));
+        if (!candidates.length) {
+            return this.log('logs: no channel in this server has "log" in its name, so there is nothing to point these at yet');
+        }
+        this.log(`logs: channels that look like log channels: ${candidates
+            .map((c) => `"${c.name}" id ${c.id}${c.parent ? ` under "${c.parent}"` : ''}`)
+            .join(' | ')}`);
     }
 
     stop() {

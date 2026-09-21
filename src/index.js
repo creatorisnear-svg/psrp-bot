@@ -29,24 +29,27 @@ const logs = new Logs(config, log);
 let client = null;
 let discordReady = false;
 let refreshPanel = null;      // set once Discord is up, so an announcement can repaint immediately
+// Every channel in the guild, flattened. Used by GET /channels and by the log audit at start-up.
+async function listChannels() {
+    if (!client) return [];
+    const guild = await client.guilds.fetch(config.guildId);
+    const channels = await guild.channels.fetch();
+    return [...channels.values()].filter(Boolean).map((c) => ({
+        id: c.id,
+        name: c.name,
+        parent: c.parent ? c.parent.name : null,
+        text: typeof c.isTextBased === 'function' && c.isTextBased(),
+        position: c.rawPosition,
+    }));
+}
+
 // The web server is up before Discord is, so the shift handler reads `client` when it fires
 // rather than capturing whatever it was at start-up.
 const server = startServer(config, game, { discord: () => discordReady, needs }, log,
     (payload) => shift.deliver(client, config, payload, log),
     () => { if (refreshPanel) refreshPanel(); },       // a restart announcement repaints at once
     logs,
-    async () => {
-        if (!client) return [];
-        const guild = await client.guilds.fetch(config.guildId);
-        const channels = await guild.channels.fetch();
-        return [...channels.values()].filter(Boolean).map((c) => ({
-            id: c.id,
-            name: c.name,
-            parent: c.parent ? c.parent.name : null,
-            text: typeof c.isTextBased === 'function' && c.isTextBased(),
-            position: c.rawPosition,
-        }));
-    });
+    listChannels);
 
 // ---- Discord ------------------------------------------------------------------------------------
 async function startDiscord() {
@@ -145,7 +148,7 @@ async function startDiscord() {
             refreshPresence().catch(() => {});
             setInterval(() => refreshPresence().catch(() => {}), 30000);
             refreshPanel = refreshStatusMessage;
-            logs.start(client, (guildId, wanted) => status.findChannel(client, guildId, wanted));
+            logs.start(client, (guildId, wanted) => status.findChannel(client, guildId, wanted), listChannels);
             if (config.statusChannelId) {
                 refreshStatusMessage();
                 setInterval(refreshStatusMessage, 60000);   // Discord rate-limits edits, so not faster
