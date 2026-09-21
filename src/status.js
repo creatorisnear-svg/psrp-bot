@@ -4,7 +4,12 @@
 // Everything in it comes from the game server's heartbeat, so the panel is only ever as fresh as
 // the last beat. When the server is down that is the honest thing to show, rather than a stale
 // player count that looks live.
+const path = require('node:path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+// The banner lives in the repo, so the panel has it on a fresh deploy with nothing to host.
+const BANNER_NAME = 'status-banner.png';
+const BANNER_PATH = path.join(__dirname, '..', 'assets', BANNER_NAME);
 
 const GREEN = 0x57c46b;
 const RED = 0xe5686c;
@@ -19,7 +24,7 @@ const soon = (seconds) => {
     return `in about ${Math.round(seconds / 60)} minutes`;
 };
 
-function embed(config, state, announced) {
+function embed(config, state, announced, bannerUrl) {
     const online = !!state.online;
     // An announced restart outranks the heartbeat: the server may still be answering while it
     // counts down, and it will stop answering in the middle of one.
@@ -36,7 +41,9 @@ function embed(config, state, announced) {
                     : '**The server is offline.** This panel updates itself the moment it comes back.'
         )
         .setTimestamp(new Date())
-        .setFooter({ text: 'Palm Springs Roleplay' });
+        .setFooter({ text: 'Palm Springs Roleplay' })
+        // Either the copy Discord already has, or the file about to be attached.
+        .setImage(bannerUrl || `attachment://${BANNER_NAME}`);
 
     if (restarting && !online) return e;
     if (!online) return e;
@@ -118,4 +125,4 @@ async function findChannel(client, guildId, wanted) {
     return match || null;
 }
 
-module.exports = { embed, buttons, findChannel };
+module.exports = { embed, buttons, findChannel, BANNER_NAME, BANNER_PATH };

@@ -66,10 +66,15 @@ async function startDiscord() {
 
             const state = await game.status();
             const announced = game.lifecycleState();
+            // Discord keeps the uploaded banner, so re-use its url on later edits rather than
+            // uploading the same file again every minute.
+            const existing = statusMessage && statusMessage.embeds[0] && statusMessage.embeds[0].image;
+            const bannerUrl = existing && existing.url ? existing.url : null;
             const payload = {
-                embeds: [status.embed(config, state, announced)],
+                embeds: [status.embed(config, state, announced, bannerUrl)],
                 components: status.buttons(config, state, announced),
             };
+            if (!bannerUrl) payload.files = [{ attachment: status.BANNER_PATH, name: status.BANNER_NAME }];
 
             // Re-use the panel already in the channel rather than posting a second one after a
             // redeploy - the bot forgets which message was its own every time it restarts.
