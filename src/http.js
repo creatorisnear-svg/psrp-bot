@@ -2,6 +2,7 @@
 // heartbeat lands.
 const http = require('node:http');
 const crypto = require('node:crypto');
+const { serveStatic } = require('./static');
 
 const MAX_BODY = 64 * 1024;
 
@@ -50,12 +51,12 @@ function startServer(config, game, health, log = console.log, onShift = null, on
         const path = (req.url || '/').split('?')[0];
         try {
             // A simple GET needs no preflight, but a browser that ever sends one should not meet a 404.
-            if (req.method === 'OPTIONS' && (path === '/' || path === '/health')) {
+            if (req.method === 'OPTIONS' && path === '/health') {
                 allowCrossOrigin(res);
                 res.writeHead(204, { 'Content-Length': '0' });
                 return res.end();
             }
-            if (req.method === 'GET' && (path === '/' || path === '/health')) {
+            if (req.method === 'GET' && path === '/health') {
                 allowCrossOrigin(res);
                 const waiting = [...(health.needs ? health.needs.discord : []), ...(health.needs ? health.needs.game : [])];
                 const live = game.state.online && game.fresh();
@@ -124,6 +125,9 @@ function startServer(config, game, health, log = console.log, onShift = null, on
                 game.heartbeat(await readJson(req));
                 return send(res, 200, { ok: true });
             }
+            // Last, deliberately. Every API route above has already had its chance, so the website
+            // cannot shadow /health or the keyed POST endpoints no matter what is in public/.
+            if (serveStatic(req, res)) return;
             return send(res, 404, { error: 'not found' });
         } catch (err) {
             return send(res, 400, { error: err.message });
