@@ -37,11 +37,18 @@ function embed(config, state) {
         // Better than an empty box: this is what a player sees in the seconds after a restart.
         e.addFields({ name: 'Priorities', value: '*updating…*' });
     } else if (state.priorities && state.priorities.length) {
+        // The game owns the state vocabulary. Known ones get a colour and wording; anything new
+        // still renders sensibly instead of falling through to a wrong label.
+        const KNOWN = {
+            open: ['🟢', 'Open'],
+            available: ['🟢', 'Available'],
+            hold: ['🔴', 'On Hold'],
+            active: ['🔴', 'In Progress'],
+            cooldown: ['🟠', 'Cooldown'],
+        };
         const lines = state.priorities.map((p) => {
-            const mark = p.state === 'available' ? '🟢' : p.state === 'active' ? '🔴' : '🟠';
-            const what = p.state === 'available' ? 'Available'
-                : p.state === 'active' ? 'In Progress'
-                : `Cooldown ${clock(p.remaining)}`;
+            const [mark, word] = KNOWN[p.state] || ['⚪', String(p.state || '').replace(/^./, (c) => c.toUpperCase())];
+            const what = p.remaining > 0 ? `${word} ${clock(p.remaining)}` : word;
             return `${mark} **${p.label}** — ${what}`;
         });
         e.addFields({ name: 'Priorities', value: lines.join('\n').slice(0, 1024) });
