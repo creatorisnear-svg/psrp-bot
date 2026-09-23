@@ -80,8 +80,9 @@ function startServer(config, game, health, log = console.log, onShift = null, on
                     } : {}),
                 });
             }
-            // A staff member clocked off. The game server has already saved the shift; this only
-            // asks the bot to pass it on, so a failed direct message never costs anyone their hours.
+            // A staff member clocked on or off (the body says which). The game server has already
+            // saved the shift; this only asks the bot to pass it on, so a failed direct message never
+            // costs anyone their hours.
             if (req.method === 'POST' && path === '/shift') {
                 if (!config.syncKey) return send(res, 503, { error: 'SYNC_KEY is not set on the bot yet' });
                 if (!authorised(req, config.syncKey)) return send(res, 401, { error: 'unauthorised' });
